@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>InfantTracker - Day View</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 1rem; max-width: 700px; margin: auto; }
+    input { margin: 0.25rem 0; width: 100%; padding: 0.5rem; }
+    section { margin-bottom: 2rem; }
+    h2 { margin-top: 2rem; }
+    ul { list-style: none; padding: 0; }
+    li { margin-bottom: 0.5rem; background: #f5f5f5; padding: 0.5rem; border-radius: 6px; }
+    #summaryBox {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #fff8dc;
+      border-top: 1px solid #ccc;
+      padding: 10px;
+      font-size: 0.95rem;
+      text-align: center;
+    }
+    .tools {
+      margin-top: 1rem;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>InfantTracker - Day View</h1>
+  <section>
+    <input type="date" id="viewDate" value="" onchange="renderDayView()" />
+    <div class="tools">
+      <button onclick="window.print()">🖨️ Print</button>
+      <button onclick="downloadPDF()">📄 Download PDF</button>
+      <button onclick="reloadLegacy()">🔄 Reload Legacy Data</button>
+    </div>
+    <h2>Feeds</h2>
+    <ul id="feedList"></ul>
+    <h2>Sleep</h2>
+    <ul id="sleepList"></ul>
+  </section>
+  <div id="summaryBox"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script>
+    let feeds = [];
+    let sleeps = [];
+
+    async function reloadLegacy() {
+      localStorage.removeItem("feeds");
+      localStorage.removeItem("sleeps");
+      await preloadLegacyData();
+    }
+
+    async function preloadLegacyData() {
+      const response = await fetch("legacy_data.json");
+      const legacy = await response.json();
+      feeds = legacy.feeds;
+      sleeps = legacy.sleeps;
+      localStorage.setItem("feeds", JSON.stringify(feeds));
+      localStorage.setItem("sleeps", JSON.stringify(sleeps));
+      renderDayView();
+    }
+
+    function renderDayView() {
+      const selected = document.getElementById("viewDate").value;
+      const feedList = document.getElementById("feedList");
+      const sleepList = document.getElementById("sleepList");
+      const summary = document.getElementById("summaryBox");
+      feedList.innerHTML = "";
+      sleepList.innerHTML = "";
+
+      let totalVolume = 0;
+      let totalSleep = 0;
+
+      feeds.filter(f => f.date.split('T')[0] === selected).forEach(f => {
+        const li = document.createElement("li");
+        li.innerHTML = `<b>${f.date}</b> - ${f.volume}ml 
+          ${f.vitD ? "✅ Vit D " : ""} 
+          ${f.multiVit ? "✅ MultiVit " : ""} 
+          ${f.iron ? "✅ Iron " : ""}<br>${f.notes}`;
+        totalVolume += parseInt(f.volume);
+        feedList.appendChild(li);
+      });
+
+      sleeps.filter(s => s.start.split('T')[0] === selected).forEach(s => {
+        const li = document.createElement("li");
+        li.innerHTML = `<b>${s.start} → ${s.end}</b> 
+          (${s.duration} min, Quality: ${s.quality})<br>${s.notes}`;
+        totalSleep += s.duration;
+        sleepList.appendChild(li);
+      });
+
+      summary.innerHTML = `<strong>Total Volume:</strong> ${totalVolume} ml | 
+                           <strong>Total Sleep:</strong> ${Math.round(totalSleep)} minutes`;
+    }
+
+    function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      let y = 10;
+      const selected = document.getElementById("viewDate").value;
+      doc.setFontSize(14);
+      doc.text("Infant Tracker - " + selected, 10, y); y += 10;
+      doc.setFontSize(12);
+      doc.text("Feeds", 10, y); y += 6;
+
+      feeds.filter(f => f.date.split('T')[0] === selected).forEach(f => {
+        doc.text(`- ${f.date} | ${f.volume}ml | VitD: ${f.vitD} Multi: ${f.multiVit} Iron: ${f.iron} | ${f.notes}`, 10, y);
+        y += 6;
+      });
+
+      doc.text("Sleep", 10, y); y += 6;
+      sleeps.filter(s => s.start.split('T')[0] === selected).forEach(s => {
+        doc.text(`- ${s.start} to ${s.end} (${s.duration} min, Q: ${s.quality}) - ${s.notes}`, 10, y);
+        y += 6;
+      });
+
+      doc.save("infant-tracker-" + selected + ".pdf");
+    }
+
+    document.getElementById("viewDate").valueAsDate = new Date();
+    if (!localStorage.getItem("feeds")) preloadLegacyData();
+    else {
+      feeds = JSON.parse(localStorage.getItem("feeds"));
+      sleeps = JSON.parse(localStorage.getItem("sleeps"));
+      renderDayView();
+    }
+  </script>
+</body>
+</html>

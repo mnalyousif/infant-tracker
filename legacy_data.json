@@ -1,0 +1,22 @@
+{
+  "feeds": [
+    {
+      "id": 1,
+      "date": "2025-04-01T08:00",
+      "volume": 100,
+      "vitD": true,
+      "multiVit": true,
+      "iron": true,
+      "notes": "Usual morning feed"
+    }
+  ],
+  "sleeps": [
+    {
+      "id": 1,
+      "start": "2025-04-01T09:00",
+      "end": "2025-04-01T10:00",
+      "quality": "Good",
+      "notes": "Morning nap"
+    }
+  ]
+}
