@@ -29,6 +29,16 @@
       gap: 10px;
     }
   </style>
+
+  <link rel="manifest" href="manifest.json" />
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => console.log('Service worker registered.'))
+        .catch(err => console.error('SW registration failed:', err));
+    }
+  </script>
+
 </head>
 <body>
   <h1>InfantTracker - Day View</h1>
