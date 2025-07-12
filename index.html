@@ -12,6 +12,17 @@
     #summaryBox { background: #fff3cd; border: 1px solid #ffeeba; padding: 10px; border-radius: 6px; margin-top: 10px; }
     .section { margin-bottom: 2rem; }
   </style>
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <meta name="theme-color" content="#ffffff" />
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js')
+        .then(() => console.log("Service Worker Registered"));
+    }
+  </script>
+
 </head>
 <body>
   <h1>Infant Tracker</h1>
