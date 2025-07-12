@@ -7,12 +7,44 @@
     .nav-buttons { display: flex; justify-content: space-between; margin: 10px 0; }
     .nodata { font-style: italic; color: #777; }
   </style>
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <meta name="theme-color" content="#ffffff" />
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js')
+        .then(() => console.log("Service Worker registered"));
+    }
+  </script>
+
 </head><body>
   <h1>Infant Tracker (Legacy View)</h1>
   <input type="date" id="viewDate">
   <div class="nav-buttons">
     <button onclick="changeDay(-1)">← Previous</button>
     <button onclick="changeDay(1)">Next →</button>
+  </div>
+
+  
+  <div class="section">
+    <h2>Add Feed</h2>
+    <input type="number" id="volume" placeholder="Volume (ml)">
+    <label><input type="checkbox" id="vitD"> Vit D</label>
+    <label><input type="checkbox" id="multiVit"> MultiVit</label>
+    <label><input type="checkbox" id="iron"> Iron</label>
+    <button onclick="addFeed()">Add Feed</button>
+  </div>
+
+  <div class="section">
+    <h2>Add Sleep</h2>
+    <input type="datetime-local" id="sleepStart">
+    <input type="datetime-local" id="sleepEnd">
+    <select id="sleepQuality">
+      <option>Excellent</option><option>Good</option><option>Fair</option><option>Poor</option>
+    </select>
+    <input type="text" id="sleepNotes" placeholder="Notes">
+    <button onclick="addSleep()">Add Sleep</button>
   </div>
 
   <h2>Feeds</h2>
@@ -43,7 +75,49 @@
       render();
     }
 
-    function render() {
+    
+function addFeed() {
+  const date = document.getElementById("viewDate").value;
+  const volume = parseInt(document.getElementById("volume").value || "0");
+  if (!volume) return;
+  const vitD = document.getElementById("vitD").checked;
+  const multiVit = document.getElementById("multiVit").checked;
+  const iron = document.getElementById("iron").checked;
+  const newEntry = {
+    id: Date.now(),
+    date: date + "T08:00",
+    volume,
+    vitD,
+    multiVit,
+    iron,
+    notes: ""
+  };
+  feeds.push(newEntry);
+  localStorage.setItem("feeds", JSON.stringify(feeds));
+  render();
+}
+
+function addSleep() {
+  const start = document.getElementById("sleepStart").value;
+  const end = document.getElementById("sleepEnd").value;
+  if (!start || !end) return;
+  const duration = (new Date(end) - new Date(start)) / 60000;
+  const quality = document.getElementById("sleepQuality").value;
+  const notes = document.getElementById("sleepNotes").value;
+  const newSleep = {
+    id: Date.now(),
+    start,
+    end,
+    duration: Math.round(duration),
+    quality,
+    notes
+  };
+  sleeps.push(newSleep);
+  localStorage.setItem("sleeps", JSON.stringify(sleeps));
+  render();
+}
+
+function render() {
       const d = document.getElementById("viewDate").value;
       const feedList = document.getElementById("feedList");
       const sleepList = document.getElementById("sleepList");
