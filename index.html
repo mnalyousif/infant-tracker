@@ -1,146 +1,179 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="en"><head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>InfantTracker - Day View</title>
+  <title>Infant Tracker</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 1rem; max-width: 700px; margin: auto; }
-    input { margin: 0.25rem 0; width: 100%; padding: 0.5rem; }
-    section { margin-bottom: 2rem; }
-    h2 { margin-top: 2rem; }
+    body { font-family: Arial; max-width: 700px; margin: auto; padding: 1rem; }
+    input, textarea, select, button { width: 100%; margin: 5px 0; padding: 0.5rem; }
     ul { list-style: none; padding: 0; }
-    li { margin-bottom: 0.5rem; background: #f5f5f5; padding: 0.5rem; border-radius: 6px; }
-    #summaryBox {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: #fff8dc;
-      border-top: 1px solid #ccc;
-      padding: 10px;
-      font-size: 0.95rem;
-      text-align: center;
-    }
-    .tools {
-      margin-top: 1rem;
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-    }
+    li { background: #f5f5f5; margin: 5px 0; padding: 0.5rem; border-radius: 5px; }
+    .nav-buttons { display: flex; justify-content: space-between; margin: 10px 0; }
+    #summaryBox { background: #fff3cd; border: 1px solid #ffeeba; padding: 10px; border-radius: 6px; margin-top: 10px; }
+    .section { margin-bottom: 2rem; }
   </style>
-
-  <link rel="manifest" href="manifest.json" />
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js')
-        .then(reg => console.log('Service worker registered.'))
-        .catch(err => console.error('SW registration failed:', err));
-    }
-  </script>
-
 </head>
 <body>
-  <h1>InfantTracker - Day View</h1>
-  <section>
-    <input type="date" id="viewDate" value="" onchange="renderDayView()" />
-    <div class="tools">
-      <button onclick="window.print()">🖨️ Print</button>
-      <button onclick="downloadPDF()">📄 Download PDF</button>
-      <button onclick="reloadLegacy()">🔄 Reload Legacy Data</button>
+  <h1>Infant Tracker</h1>
+
+  <div class="section">
+    <label for="viewDate">Select Date</label>
+    <input type="date" id="viewDate" value="2025-07-12">
+    <div class="nav-buttons">
+      <button onclick="changeDay(-1)">← Previous</button>
+      <button onclick="changeDay(1)">Next →</button>
     </div>
-    <h2>Feeds</h2>
+  </div>
+
+  <div class="section">
+    <h2>Add Feed</h2>
+    <input type="number" id="volume" placeholder="Volume (ml)">
+    <label><input type="checkbox" id="vitD"> Vitamin D</label>
+    <label><input type="checkbox" id="multiVit"> Multivitamin</label>
+    <label><input type="checkbox" id="iron"> Iron</label>
+    <textarea id="feedNotes" placeholder="Notes"></textarea>
+    <button onclick="addFeed()">Add Feed</button>
+  </div>
+
+  <div class="section">
+    <h2>Add Sleep</h2>
+    <input type="datetime-local" id="sleepStart">
+    <input type="datetime-local" id="sleepEnd">
+    <select id="sleepQuality">
+      <option>Excellent</option>
+      <option>Good</option>
+      <option>Fair</option>
+      <option>Poor</option>
+    </select>
+    <textarea id="sleepNotes" placeholder="Notes"></textarea>
+    <button onclick="addSleep()">Add Sleep</button>
+  </div>
+
+  <div class="section">
+    <h2>Feeds for Selected Date</h2>
     <ul id="feedList"></ul>
-    <h2>Sleep</h2>
+  </div>
+
+  <div class="section">
+    <h2>Sleeps for Selected Date</h2>
     <ul id="sleepList"></ul>
-  </section>
+  </div>
+
   <div id="summaryBox"></div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script>
-    let feeds = [];
-    let sleeps = [];
+  <div class="section">
+    <button onclick="downloadCSV()">Export CSV</button>
+    <button onclick="window.print()">Print</button>
+  </div>
 
-    async function reloadLegacy() {
-      localStorage.removeItem("feeds");
-      localStorage.removeItem("sleeps");
-      await preloadLegacyData();
-    }
+<script>
+const legacyData = {"feeds": [{"id": 1, "date": "2025-04-01T08:00", "volume": 100, "vitD": true, "multiVit": true, "iron": true, "notes": "Usual morning feed"}], "sleeps": [{"id": 1, "start": "2025-04-01T09:00", "end": "2025-04-01T10:00", "quality": "Good", "notes": "Morning nap"}]};
 
-    async function preloadLegacyData() {
-      const response = await fetch("legacy_data.json");
-      const legacy = await response.json();
-      feeds = legacy.feeds;
-      sleeps = legacy.sleeps;
-      localStorage.setItem("feeds", JSON.stringify(feeds));
-      localStorage.setItem("sleeps", JSON.stringify(sleeps));
-      renderDayView();
-    }
+let feeds = JSON.parse(localStorage.getItem("feeds") || "[]");
+let sleeps = JSON.parse(localStorage.getItem("sleeps") || "[]");
 
-    function renderDayView() {
-      const selected = document.getElementById("viewDate").value;
-      const feedList = document.getElementById("feedList");
-      const sleepList = document.getElementById("sleepList");
-      const summary = document.getElementById("summaryBox");
-      feedList.innerHTML = "";
-      sleepList.innerHTML = "";
+if (feeds.length === 0 && legacyData.feeds) {
+  feeds = legacyData.feeds;
+  sleeps = legacyData.sleeps;
+  localStorage.setItem("feeds", JSON.stringify(feeds));
+  localStorage.setItem("sleeps", JSON.stringify(sleeps));
+}
 
-      let totalVolume = 0;
-      let totalSleep = 0;
+function changeDay(offset) {
+  const input = document.getElementById("viewDate");
+  const date = new Date(input.value);
+  date.setDate(date.getDate() + offset);
+  input.valueAsDate = date;
+  renderDay();
+}
 
-      feeds.filter(f => f.date.split('T')[0] === selected).forEach(f => {
-        const li = document.createElement("li");
-        li.innerHTML = `<b>${f.date}</b> - ${f.volume}ml 
-          ${f.vitD ? "✅ Vit D " : ""} 
-          ${f.multiVit ? "✅ MultiVit " : ""} 
-          ${f.iron ? "✅ Iron " : ""}<br>${f.notes}`;
-        totalVolume += parseInt(f.volume);
-        feedList.appendChild(li);
-      });
+function addFeed() {
+  const date = document.getElementById("viewDate").value;
+  const volume = document.getElementById("volume").value;
+  const vitD = document.getElementById("vitD").checked;
+  const multiVit = document.getElementById("multiVit").checked;
+  const iron = document.getElementById("iron").checked;
+  const notes = document.getElementById("feedNotes").value;
+  if (!volume) return;
+  const newFeed = {
+    id: Date.now(),
+    date: date + "T08:00",
+    volume: parseInt(volume),
+    vitD, multiVit, iron, notes
+  };
+  feeds.push(newFeed);
+  localStorage.setItem("feeds", JSON.stringify(feeds));
+  renderDay();
+}
 
-      sleeps.filter(s => s.start.split('T')[0] === selected).forEach(s => {
-        const li = document.createElement("li");
-        li.innerHTML = `<b>${s.start} → ${s.end}</b> 
-          (${s.duration} min, Quality: ${s.quality})<br>${s.notes}`;
-        totalSleep += s.duration;
-        sleepList.appendChild(li);
-      });
+function addSleep() {
+  const start = document.getElementById("sleepStart").value;
+  const end = document.getElementById("sleepEnd").value;
+  const quality = document.getElementById("sleepQuality").value;
+  const notes = document.getElementById("sleepNotes").value;
+  if (!start || !end) return;
+  const duration = (new Date(end) - new Date(start)) / 60000;
+  const newSleep = {
+    id: Date.now(),
+    start,
+    end,
+    duration: Math.round(duration),
+    quality,
+    notes
+  };
+  sleeps.push(newSleep);
+  localStorage.setItem("sleeps", JSON.stringify(sleeps));
+  renderDay();
+}
 
-      summary.innerHTML = `<strong>Total Volume:</strong> ${totalVolume} ml | 
-                           <strong>Total Sleep:</strong> ${Math.round(totalSleep)} minutes`;
-    }
+function renderDay() {
+  const selected = document.getElementById("viewDate").value;
+  const feedList = document.getElementById("feedList");
+  const sleepList = document.getElementById("sleepList");
+  const summary = document.getElementById("summaryBox");
+  feedList.innerHTML = "";
+  sleepList.innerHTML = "";
 
-    function downloadPDF() {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      let y = 10;
-      const selected = document.getElementById("viewDate").value;
-      doc.setFontSize(14);
-      doc.text("Infant Tracker - " + selected, 10, y); y += 10;
-      doc.setFontSize(12);
-      doc.text("Feeds", 10, y); y += 6;
+  let totalVolume = 0;
+  let totalSleep = 0;
 
-      feeds.filter(f => f.date.split('T')[0] === selected).forEach(f => {
-        doc.text(`- ${f.date} | ${f.volume}ml | VitD: ${f.vitD} Multi: ${f.multiVit} Iron: ${f.iron} | ${f.notes}`, 10, y);
-        y += 6;
-      });
+  feeds.filter(f => f.date.split('T')[0] === selected).forEach(f => {
+    const li = document.createElement("li");
+    li.innerHTML = `<b>${f.date}</b> - ${f.volume}ml
+      ${f.vitD ? "✅ Vit D " : ""} 
+      ${f.multiVit ? "✅ MultiVit " : ""} 
+      ${f.iron ? "✅ Iron " : ""}<br>${f.notes}`;
+    totalVolume += f.volume;
+    feedList.appendChild(li);
+  });
 
-      doc.text("Sleep", 10, y); y += 6;
-      sleeps.filter(s => s.start.split('T')[0] === selected).forEach(s => {
-        doc.text(`- ${s.start} to ${s.end} (${s.duration} min, Q: ${s.quality}) - ${s.notes}`, 10, y);
-        y += 6;
-      });
+  sleeps.filter(s => s.start.split('T')[0] === selected).forEach(s => {
+    const li = document.createElement("li");
+    li.innerHTML = `<b>${s.start} → ${s.end}</b> ({s.duration} min, Q: ${s.quality})<br>${s.notes}`;
+    totalSleep += s.duration;
+    sleepList.appendChild(li);
+  });
 
-      doc.save("infant-tracker-" + selected + ".pdf");
-    }
+  summary.innerHTML = `<strong>Total Volume:</strong> ${totalVolume} ml | <strong>Total Sleep:</strong> ${Math.round(totalSleep)} minutes`;
+}
 
-    document.getElementById("viewDate").valueAsDate = new Date();
-    if (!localStorage.getItem("feeds")) preloadLegacyData();
-    else {
-      feeds = JSON.parse(localStorage.getItem("feeds"));
-      sleeps = JSON.parse(localStorage.getItem("sleeps"));
-      renderDayView();
-    }
-  </script>
-</body>
-</html>
+function downloadCSV() {
+  let csv = "Date,Volume,Vit D,MultiVit,Iron,Notes\n";
+  feeds.forEach(f => {
+    csv += `${f.date},${f.volume},${f.vitD},${f.multiVit},${f.iron},"${f.notes}"\n`;
+  });
+  csv += "\nSleep\nStart,End,Duration,Quality,Notes\n";
+  sleeps.forEach(s => {
+    csv += `${s.start},${s.end},${s.duration},${s.quality},"${s.notes}"\n`;
+  });
+  const blob = new Blob([csv], { type: "text/csv" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "infant-tracker.csv";
+  link.click();
+}
+
+document.getElementById("viewDate").valueAsDate = new Date();
+renderDay();
+</script>
+</body></html>
