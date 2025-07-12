@@ -1,190 +1,89 @@
-<!DOCTYPE html>
-<html lang="en"><head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<!DOCTYPE html><html><head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Infant Tracker</title>
   <style>
     body { font-family: Arial; max-width: 700px; margin: auto; padding: 1rem; }
-    input, textarea, select, button { width: 100%; margin: 5px 0; padding: 0.5rem; }
-    ul { list-style: none; padding: 0; }
-    li { background: #f5f5f5; margin: 5px 0; padding: 0.5rem; border-radius: 5px; }
+    input, button { padding: 0.5rem; width: 100%; margin: 4px 0; }
     .nav-buttons { display: flex; justify-content: space-between; margin: 10px 0; }
-    #summaryBox { background: #fff3cd; border: 1px solid #ffeeba; padding: 10px; border-radius: 6px; margin-top: 10px; }
-    .section { margin-bottom: 2rem; }
+    .nodata { font-style: italic; color: #777; }
   </style>
-
-  <link rel="manifest" href="manifest.json" />
-  <link rel="apple-touch-icon" href="icon-192.png" />
-  <meta name="theme-color" content="#ffffff" />
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js')
-        .then(() => console.log("Service Worker Registered"));
-    }
-  </script>
-
-</head>
-<body>
-  <h1>Infant Tracker</h1>
-
-  <div class="section">
-    <label for="viewDate">Select Date</label>
-    <input type="date" id="viewDate" value="2025-07-12">
-    <div class="nav-buttons">
-      <button onclick="changeDay(-1)">← Previous</button>
-      <button onclick="changeDay(1)">Next →</button>
-    </div>
+</head><body>
+  <h1>Infant Tracker (Legacy View)</h1>
+  <input type="date" id="viewDate">
+  <div class="nav-buttons">
+    <button onclick="changeDay(-1)">← Previous</button>
+    <button onclick="changeDay(1)">Next →</button>
   </div>
 
-  <div class="section">
-    <h2>Add Feed</h2>
-    <input type="number" id="volume" placeholder="Volume (ml)">
-    <label><input type="checkbox" id="vitD"> Vitamin D</label>
-    <label><input type="checkbox" id="multiVit"> Multivitamin</label>
-    <label><input type="checkbox" id="iron"> Iron</label>
-    <textarea id="feedNotes" placeholder="Notes"></textarea>
-    <button onclick="addFeed()">Add Feed</button>
-  </div>
+  <h2>Feeds</h2>
+  <ul id="feedList"></ul>
 
-  <div class="section">
-    <h2>Add Sleep</h2>
-    <input type="datetime-local" id="sleepStart">
-    <input type="datetime-local" id="sleepEnd">
-    <select id="sleepQuality">
-      <option>Excellent</option>
-      <option>Good</option>
-      <option>Fair</option>
-      <option>Poor</option>
-    </select>
-    <textarea id="sleepNotes" placeholder="Notes"></textarea>
-    <button onclick="addSleep()">Add Sleep</button>
-  </div>
-
-  <div class="section">
-    <h2>Feeds for Selected Date</h2>
-    <ul id="feedList"></ul>
-  </div>
-
-  <div class="section">
-    <h2>Sleeps for Selected Date</h2>
-    <ul id="sleepList"></ul>
-  </div>
+  <h2>Sleeps</h2>
+  <ul id="sleepList"></ul>
 
   <div id="summaryBox"></div>
 
-  <div class="section">
-    <button onclick="downloadCSV()">Export CSV</button>
-    <button onclick="window.print()">Print</button>
-  </div>
+  <script>
+    const legacyData = {"feeds": [{"id": 1, "date": "2025-07-10T02:40", "volume": 210, "vitD": true, "multiVit": true, "iron": true, "notes": ""}, {"id": 2, "date": "2025-07-10T07:10", "volume": 130, "vitD": false, "multiVit": false, "iron": false, "notes": ""}, {"id": 3, "date": "2025-07-09T21:15", "volume": 190, "vitD": true, "multiVit": true, "iron": false, "notes": ""}], "sleeps": [{"id": 1, "start": "2025-07-10T03:30", "end": "2025-07-10T05:00", "duration": 90, "quality": "Good", "notes": "Night sleep"}, {"id": 2, "start": "2025-07-09T22:00", "end": "2025-07-10T00:00", "duration": 120, "quality": "Fair", "notes": "Evening nap"}]};
+    let feeds = JSON.parse(localStorage.getItem("feeds") || "[]");
+    let sleeps = JSON.parse(localStorage.getItem("sleeps") || "[]");
 
-<script>
-const legacyData = {"feeds": [{"id": 1, "date": "2025-04-01T08:00", "volume": 100, "vitD": true, "multiVit": true, "iron": true, "notes": "Usual morning feed"}], "sleeps": [{"id": 1, "start": "2025-04-01T09:00", "end": "2025-04-01T10:00", "quality": "Good", "notes": "Morning nap"}]};
+    if (feeds.length === 0) {
+      feeds = legacyData.feeds;
+      sleeps = legacyData.sleeps;
+      localStorage.setItem("feeds", JSON.stringify(feeds));
+      localStorage.setItem("sleeps", JSON.stringify(sleeps));
+    }
 
-let feeds = JSON.parse(localStorage.getItem("feeds") || "[]");
-let sleeps = JSON.parse(localStorage.getItem("sleeps") || "[]");
+    function changeDay(offset) {
+      const input = document.getElementById("viewDate");
+      const date = new Date(input.value);
+      date.setDate(date.getDate() + offset);
+      input.valueAsDate = date;
+      render();
+    }
 
-if (feeds.length === 0 && legacyData.feeds) {
-  feeds = legacyData.feeds;
-  sleeps = legacyData.sleeps;
-  localStorage.setItem("feeds", JSON.stringify(feeds));
-  localStorage.setItem("sleeps", JSON.stringify(sleeps));
-}
+    function render() {
+      const d = document.getElementById("viewDate").value;
+      const feedList = document.getElementById("feedList");
+      const sleepList = document.getElementById("sleepList");
+      const summary = document.getElementById("summaryBox");
+      feedList.innerHTML = "";
+      sleepList.innerHTML = "";
+      let volume = 0, sleep = 0;
 
-function changeDay(offset) {
-  const input = document.getElementById("viewDate");
-  const date = new Date(input.value);
-  date.setDate(date.getDate() + offset);
-  input.valueAsDate = date;
-  renderDay();
-}
+      const dayFeeds = feeds.filter(f => f.date.split('T')[0] === d);
+      const daySleeps = sleeps.filter(s => s.start.split('T')[0] === d);
 
-function addFeed() {
-  const date = document.getElementById("viewDate").value;
-  const volume = document.getElementById("volume").value;
-  const vitD = document.getElementById("vitD").checked;
-  const multiVit = document.getElementById("multiVit").checked;
-  const iron = document.getElementById("iron").checked;
-  const notes = document.getElementById("feedNotes").value;
-  if (!volume) return;
-  const newFeed = {
-    id: Date.now(),
-    date: date + "T08:00",
-    volume: parseInt(volume),
-    vitD, multiVit, iron, notes
-  };
-  feeds.push(newFeed);
-  localStorage.setItem("feeds", JSON.stringify(feeds));
-  renderDay();
-}
+      if (dayFeeds.length === 0) {
+        feedList.innerHTML = "<li class='nodata'>No feeds recorded for this date.</li>";
+      } else {
+        dayFeeds.forEach(f => {
+          const li = document.createElement("li");
+          li.textContent = `${f.date} - ${f.volume}ml` + 
+            (f.vitD ? " ✅Vit D" : "") +
+            (f.multiVit ? " ✅MultiVit" : "") +
+            (f.iron ? " ✅Iron" : "");
+          feedList.appendChild(li);
+          volume += f.volume;
+        });
+      }
 
-function addSleep() {
-  const start = document.getElementById("sleepStart").value;
-  const end = document.getElementById("sleepEnd").value;
-  const quality = document.getElementById("sleepQuality").value;
-  const notes = document.getElementById("sleepNotes").value;
-  if (!start || !end) return;
-  const duration = (new Date(end) - new Date(start)) / 60000;
-  const newSleep = {
-    id: Date.now(),
-    start,
-    end,
-    duration: Math.round(duration),
-    quality,
-    notes
-  };
-  sleeps.push(newSleep);
-  localStorage.setItem("sleeps", JSON.stringify(sleeps));
-  renderDay();
-}
+      if (daySleeps.length === 0) {
+        sleepList.innerHTML = "<li class='nodata'>No sleep recorded for this date.</li>";
+      } else {
+        daySleeps.forEach(s => {
+          const li = document.createElement("li");
+          li.textContent = `${s.start} → ${s.end} ({s.duration} min, Q: ${s.quality})`;
+          sleep += s.duration;
+          sleepList.appendChild(li);
+        });
+      }
 
-function renderDay() {
-  const selected = document.getElementById("viewDate").value;
-  const feedList = document.getElementById("feedList");
-  const sleepList = document.getElementById("sleepList");
-  const summary = document.getElementById("summaryBox");
-  feedList.innerHTML = "";
-  sleepList.innerHTML = "";
+      summary.innerHTML = `<p><strong>Total Volume:</strong> ${volume} ml<br><strong>Total Sleep:</strong> ${sleep} min</p>`;
+    }
 
-  let totalVolume = 0;
-  let totalSleep = 0;
-
-  feeds.filter(f => f.date.split('T')[0] === selected).forEach(f => {
-    const li = document.createElement("li");
-    li.innerHTML = `<b>${f.date}</b> - ${f.volume}ml
-      ${f.vitD ? "✅ Vit D " : ""} 
-      ${f.multiVit ? "✅ MultiVit " : ""} 
-      ${f.iron ? "✅ Iron " : ""}<br>${f.notes}`;
-    totalVolume += f.volume;
-    feedList.appendChild(li);
-  });
-
-  sleeps.filter(s => s.start.split('T')[0] === selected).forEach(s => {
-    const li = document.createElement("li");
-    li.innerHTML = `<b>${s.start} → ${s.end}</b> ({s.duration} min, Q: ${s.quality})<br>${s.notes}`;
-    totalSleep += s.duration;
-    sleepList.appendChild(li);
-  });
-
-  summary.innerHTML = `<strong>Total Volume:</strong> ${totalVolume} ml | <strong>Total Sleep:</strong> ${Math.round(totalSleep)} minutes`;
-}
-
-function downloadCSV() {
-  let csv = "Date,Volume,Vit D,MultiVit,Iron,Notes\n";
-  feeds.forEach(f => {
-    csv += `${f.date},${f.volume},${f.vitD},${f.multiVit},${f.iron},"${f.notes}"\n`;
-  });
-  csv += "\nSleep\nStart,End,Duration,Quality,Notes\n";
-  sleeps.forEach(s => {
-    csv += `${s.start},${s.end},${s.duration},${s.quality},"${s.notes}"\n`;
-  });
-  const blob = new Blob([csv], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "infant-tracker.csv";
-  link.click();
-}
-
-document.getElementById("viewDate").valueAsDate = new Date();
-renderDay();
-</script>
+    document.getElementById("viewDate").valueAsDate = new Date();
+    render();
+  </script>
 </body></html>
